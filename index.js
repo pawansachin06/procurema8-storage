@@ -37,20 +37,22 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
         await mkdir(folderPathOnDisk, { recursive: true });
         await chmod(folderPathOnDisk, 0o775); // Set directory permissions to 775
 
-        let finalFileName = req.file.originalname;
-        const filePath = path.join(folderPathOnDisk, finalFileName);
+        let fileName = req.file.originalname;
+        let fileExtension = '';
 
+        let filePath = path.join(folderPathOnDisk, fileName);
         if (fs.existsSync(filePath)) {
-            const fileExtension = path.extname(finalFileName);
-            const baseName = path.basename(finalFileName, fileExtension);
-            finalFileName = `${baseName}-${nanoid()}${fileExtension}`;
+            fileExtension = path.extname(fileName);
+            const baseName = path.basename(fileName, fileExtension);
+            fileName = `${baseName}-${nanoid()}${fileExtension}`;
+            filePath = path.join(folderPathOnDisk, fileName);
         }
 
         await writeFile(filePath, req.file.buffer);
         await chmod(filePath, 0o664); // Set file permissions to 664
 
-        const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${folderPath}/${finalFileName}`;
-        res.json({ imageUrl });
+        const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${folderPath}/${fileName}`;
+        res.json({ fileName, folderPath, fileExtension, fileUrl });
     } catch (error) {
         next(error);
     }
