@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { nanoid } from 'nanoid';
 import { fileURLToPath } from 'url';
+import { promisify } from 'util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +18,11 @@ app.use(express.urlencoded({ extended: true }));
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-app.post('/upload', upload.single('file'), (req, res, next) => {
+const mkdir = promisify(fs.mkdir);
+const writeFile = promisify(fs.writeFile);
+const chmod = promisify(fs.chmod);
+
+app.post('/upload', upload.single('file'), async (req, res, next) => {
     try {
         const { folderPath } = req.body;
         if (!folderPath) {
@@ -29,7 +34,8 @@ app.post('/upload', upload.single('file'), (req, res, next) => {
         }
 
         const folderPathOnDisk = path.join(__dirname, 'uploads', folderPath);
-        fs.mkdirSync(folderPathOnDisk, { recursive: true });
+        await mkdir(folderPathOnDisk, { recursive: true });
+        await chmod(folderPathOnDisk, 0o775); // Set directory permissions to 775
 
         let finalFileName = req.file.originalname;
         const filePath = path.join(folderPathOnDisk, finalFileName);
@@ -40,7 +46,8 @@ app.post('/upload', upload.single('file'), (req, res, next) => {
             finalFileName = `${baseName}-${nanoid()}${fileExtension}`;
         }
 
-        fs.writeFileSync(filePath, req.file.buffer);
+        await writeFile(filePath, req.file.buffer);
+        await chmod(filePath, 0o664); // Set file permissions to 664
 
         const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${folderPath}/${finalFileName}`;
         res.json({ imageUrl });
