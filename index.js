@@ -21,6 +21,7 @@ const upload = multer({ storage });
 const mkdir = promisify(fs.mkdir);
 const writeFile = promisify(fs.writeFile);
 const chmod = promisify(fs.chmod);
+const unlink = promisify(fs.unlink);
 
 app.post('/upload', upload.single('file'), async (req, res, next) => {
     try {
@@ -58,6 +59,37 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
     }
 }, (error, req, res, next) => {
     res.status(400).send({ message: error.message });
+});
+
+app.delete('/delete', async (req, res, next) => {
+    try {
+        const { folderPath, fileName } = req.query;
+
+        if (!folderPath || !fileName) {
+            return res.status(400).send({ message: 'Folder path and file name are required' });
+        }
+
+        const filePath = path.join(__dirname, 'uploads', folderPath, fileName);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).send({ message: 'File not found' });
+        }
+
+        await unlink(filePath);
+        res.status(200).send({ message: 'File deleted successfully' });
+    } catch (error) {
+        next(error);
+    }
+}, (error, req, res, next) => {
+    res.status(500).send({ message: 'File delete error', error: error.message });
+});
+
+app.use((req, res) => {
+    res.status(404).json({ message: 'Not Found' });
+});
+
+app.use((err, req, res, next) => {
+    res.status(500).json({ message: err.message });
 });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
