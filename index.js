@@ -1,10 +1,8 @@
 import express from 'express';
 import multer from 'multer';
-import { nanoid } from 'nanoid';
 import path from 'path';
 import fs from 'fs';
-
-// Helper to get __dirname equivalent in ES modules
+import { nanoid } from 'nanoid';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,43 +11,45 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3011;
 
-// Set up Multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const folderPath = path.join(__dirname, 'uploads', req.body.folderPath);
-        fs.mkdirSync(folderPath, { recursive: true });
-        cb(null, folderPath);
-    },
-    filename: function (req, file, cb) {
-        let fileName = req.body.imageName || file.originalname;
-        const folderPath = path.join(__dirname, 'uploads', req.body.folderPath);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-        // Check if file with the same name exists
-        if (fs.existsSync(path.join(folderPath, fileName))) {
-            const fileExtension = path.extname(fileName);
-            const baseName = path.basename(fileName, fileExtension);
-            fileName = `${baseName}-${nanoid()}${fileExtension}`;
-        }
-
-        cb(null, fileName);
-    }
-});
-
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Handle file upload
-app.post('/upload', upload.single('image'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).send('No file uploaded');
+app.post('/upload', upload.single('file'), (req, res, next) => {
+    try {
+        const { folderPath } = req.body;
+        if (!folderPath) {
+            return res.status(400).send({ message: 'Folder path is required' });
+        }
+
+        if (!req.file) {
+            return res.status(400).send({ message: 'No file uploaded' });
+        }
+
+        const folderPathOnDisk = path.join(__dirname, 'uploads', folderPath);
+        fs.mkdirSync(folderPathOnDisk, { recursive: true });
+
+        let finalFileName = req.file.originalname;
+        const filePath = path.join(folderPathOnDisk, finalFileName);
+
+        if (fs.existsSync(filePath)) {
+            const fileExtension = path.extname(finalFileName);
+            const baseName = path.basename(finalFileName, fileExtension);
+            finalFileName = `${baseName}-${nanoid()}${fileExtension}`;
+        }
+
+        fs.writeFileSync(filePath, req.file.buffer);
+
+        const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${folderPath}/${finalFileName}`;
+        res.json({ imageUrl });
+    } catch (error) {
+        next(error);
     }
-
-    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.body.folderPath}/${req.file.filename}`;
-    res.json({ imageUrl });
+}, (error, req, res, next) => {
+    res.status(400).send({ message: error.message });
 });
 
-// Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}/`);
-});
+app.listen(port, () => {});
