@@ -84,6 +84,8 @@ app.delete('/delete', async (req, res, next) => {
     res.status(500).send({ message: 'File delete error', error: error.message });
 });
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use((req, res) => {
     res.status(404).json({ message: 'Not Found' });
 });
@@ -92,5 +94,4 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: err.message });
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.listen(port, () => {});
