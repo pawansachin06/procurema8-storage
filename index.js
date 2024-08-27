@@ -23,6 +23,30 @@ const writeFile = promisify(fs.writeFile);
 const chmod = promisify(fs.chmod);
 const unlink = promisify(fs.unlink);
 
+function slugify(text) {
+    return text
+        .toLowerCase() // Convert the string to lowercase
+        .normalize('NFD') // Normalize to decompose characters with diacritics
+        .replace(/[\u0300-\u036f]/g, '') // Remove diacritics (accents, etc.)
+        .replace(/[^a-z0-9\s-.]/g, '') // Remove all non-alphanumeric characters except spaces, hyphens, and dots
+        .trim() // Trim leading and trailing whitespace
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with a single hyphen
+        .replace(/\.{2,}/g, '.') // Replace multiple dots with a single dot
+        .replace(/^-+|-+$/g, '') // Remove leading and trailing hyphens
+        .replace(/^\.+|\.+$/g, ''); // Remove leading and trailing dots
+}
+
+function truncateFilename(filename, maxLength = 90) {
+    const extensionIndex = filename.lastIndexOf('.'); // Find the index of the file extension
+    // If there's no extension, return the truncated filename
+    if (extensionIndex === -1) {
+        return filename.substring(0, maxLength);
+    }
+    const filenameMaxLength = maxLength - (filename.length - extensionIndex); // Calculate the maximum length for the filename without the extension
+    return filename.substring(0, filenameMaxLength) + filename.substring(extensionIndex); // Truncate the filename and append the extension
+}
+
 app.post('/upload', upload.single('file'), async (req, res, next) => {
     try {
         const { folderPath } = req.body;
@@ -38,14 +62,16 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
         await mkdir(folderPathOnDisk, { recursive: true });
         await chmod(folderPathOnDisk, 0o775); // Set directory permissions to 775
 
-        let fileName = req.file.originalname;
-        let fileExtension = '';
-
+        let fileName = slugify(req.file.originalname);
+        fileName = truncateFilename(fileName);
         let filePath = path.join(folderPathOnDisk, fileName);
+        const fileExtension = path.extname(fileName);
+        const fileMimeType = req.file.mimetype;
+
         if (fs.existsSync(filePath)) {
-            fileExtension = path.extname(fileName);
             const baseName = path.basename(fileName, fileExtension);
             fileName = `${baseName}-${nanoid()}${fileExtension}`;
+            fileName = slugify(fileName);
             filePath = path.join(folderPathOnDisk, fileName);
         }
 
@@ -53,7 +79,7 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
         await chmod(filePath, 0o664); // Set file permissions to 664
 
         const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${folderPath}/${fileName}`;
-        res.json({ fileName, folderPath, fileExtension, fileUrl });
+        res.json({ fileName, folderPath, fileMimeType, fileExtension, fileUrl });
     } catch (error) {
         next(error);
     }
