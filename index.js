@@ -38,13 +38,13 @@ function slugify(text) {
 }
 
 function truncateFilename(filename, maxLength = 90) {
+    if(filename.length <= 90) return filename; // if length already less then return
     const extensionIndex = filename.lastIndexOf('.'); // Find the index of the file extension
     // If there's no extension, return the truncated filename
     if (extensionIndex === -1) {
         return filename.substring(0, maxLength);
     }
-    const filenameMaxLength = maxLength - (filename.length - extensionIndex); // Calculate the maximum length for the filename without the extension
-    return filename.substring(0, filenameMaxLength) + filename.substring(extensionIndex); // Truncate the filename and append the extension
+    return filename.substring(0, maxLength) + filename.substring(extensionIndex); // Truncate the filename and append the extension
 }
 
 app.post('/upload', upload.single('file'), async (req, res, next) => {
@@ -65,8 +65,8 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
         let fileName = slugify(req.file.originalname);
         fileName = truncateFilename(fileName);
         let filePath = path.join(folderPathOnDisk, fileName);
-        const fileExtension = path.extname(fileName);
         const fileMimeType = req.file.mimetype;
+        const fileExtension = path.extname(fileName);
 
         if (fs.existsSync(filePath)) {
             const baseName = path.basename(fileName, fileExtension);
@@ -98,7 +98,7 @@ app.delete('/delete', async (req, res, next) => {
         const filePath = path.join(__dirname, 'uploads', folderPath, fileName);
 
         if (!fs.existsSync(filePath)) {
-            return res.status(404).send({ message: 'File not found' });
+            return res.status(200).send({ message: 'File not found, already deleted' });
         }
 
         await unlink(filePath);
